@@ -1,6 +1,6 @@
+use async_openai::config::OpenAIConfig;
 use mastodon_async::Data;
 use serde::{Deserialize, Serialize};
-use async_openai::config::OpenAIConfig;
 
 #[derive(Debug, Deserialize, Serialize)]
 struct MastodonConfig {
@@ -41,8 +41,7 @@ impl Config {
         }
     }
     pub fn to_gpt_config(&self) -> OpenAIConfig {
-        OpenAIConfig::new()
-            .with_api_key(self.gpt.access_token.clone())
+        OpenAIConfig::new().with_api_key(self.gpt.access_token.clone())
     }
     pub fn get_model(&self) -> String {
         self.gpt.model.clone()

@@ -1,13 +1,5 @@
 use std::error::Error;
 
-use async_openai::types::{ChatCompletionTool, CreateImageRequest};
-use async_openai::{Client, config::Config};
-use async_openai::{
-    types::{
-        ChatCompletionRequestAssistantMessageArgs, ChatCompletionRequestSystemMessageArgs,
-        ChatCompletionRequestUserMessageArgs, CreateChatCompletionRequestArgs,
-    },
-};
 use kv_log_macro::info;
 use log::debug;
 use serde_json::{json, Value};
@@ -16,7 +8,6 @@ pub struct Vision();
 impl Vision {
     pub async fn get_description(&self, image_url: String) -> Result<String, Box<dyn Error>> {
         let config = crate::config::Config::from_json();
-        let gpt_config = config.to_gpt_config();
         let client = reqwest::Client::new();
 
         let response = client.post("https://api.openai.com/v1/chat/completions")
@@ -47,13 +38,18 @@ impl Vision {
             .await?;
         let body: Value = response.json().await?;
         debug!("Full response from ChatGPT API: {:#?}", body);
-        let choices = body.as_object().unwrap().get("choices").unwrap().as_array().unwrap();
+        let choices = body
+            .as_object()
+            .unwrap()
+            .get("choices")
+            .unwrap()
+            .as_array()
+            .unwrap();
         let first_choice = choices.first().unwrap().as_object().unwrap();
         let message = first_choice.get("message").unwrap().as_object().unwrap();
         let content = message.get("content").unwrap().as_str().unwrap();
         info!("Got description: {}", content);
 
         Ok("".to_string())
-
     }
 }

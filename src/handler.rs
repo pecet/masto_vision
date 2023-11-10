@@ -1,11 +1,9 @@
 use std::error::Error;
 
-use crate::config::Config;
 use crate::vision::Vision;
 use chrono::Local;
-use futures_util::{TryFutureExt, TryStreamExt};
-use log::{error, warn, LevelFilter, debug, info};
-use mastodon_async::prelude::*;
+
+use log::LevelFilter;
 
 pub struct Handler();
 impl Handler {
