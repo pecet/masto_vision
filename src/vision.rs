@@ -48,8 +48,7 @@ impl Vision {
         let first_choice = choices.first().unwrap().as_object().unwrap();
         let message = first_choice.get("message").unwrap().as_object().unwrap();
         let content = message.get("content").unwrap().as_str().unwrap();
-        info!("Got description: {}", content);
-
-        Ok("".to_string())
+        info!("Got description: {}", &content);
+        Ok(content.to_string())
     }
 }
