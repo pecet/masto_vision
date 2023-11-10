@@ -47,4 +47,7 @@ impl Config {
     pub fn get_model(&self) -> String {
         self.gpt.model.clone()
     }
+    pub fn get_gpt_api_key(&self) -> String {
+        self.gpt.access_token.clone()
+    }
 }
