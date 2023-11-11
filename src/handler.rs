@@ -27,21 +27,23 @@ impl Handler {
                         PossibleValue::new("trace"),
                         PossibleValue::new("warn"),
                         PossibleValue::new("error"),
+                        PossibleValue::new("quiet"),
                     ])
-                    .default_value("warn"),
+                    .default_value("info"),
             )
             .get_matches();
         // convert matches to LevelFilter
         matches
             .get_one("verbosity level")
             .cloned()
-            .map_or(LevelFilter::Warn, |level: String| match level.as_str() {
+            .map_or(LevelFilter::Info, |level: String| match level.as_str() {
                 "info" => LevelFilter::Info,
                 "debug" => LevelFilter::Debug,
                 "trace" => LevelFilter::Trace,
                 "warn" => LevelFilter::Warn,
                 "error" => LevelFilter::Error,
-                _ => LevelFilter::Warn,
+                "quiet" => LevelFilter::Off,
+                _ => LevelFilter::Info,
             })
     }
 
