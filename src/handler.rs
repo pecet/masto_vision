@@ -139,12 +139,11 @@ impl Handler {
                                 let message_id = update.id.to_string();
                                 let current_json = mp.get_json_of_message(message_id.clone())
                                     .await.unwrap_or_default().unwrap_or_default();
-                                mp.put_json_of_message(current_json, message_id, descriptions_filtered).await;
+                                mp.put_json_of_message(current_json, message_id.clone(), descriptions_filtered).await;
+                                info!("Successfully added description to message {}", message_id);
                             }
                         }
-                        Event::Notification(_) => {},
-                        Event::Delete(_) => {},
-                        Event::FiltersChanged => {},
+                        _ => {}
                     }
                     Ok(())
                 })
