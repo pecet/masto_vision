@@ -8,8 +8,43 @@ use kv_log_macro::warn;
 use log::{LevelFilter, debug, info, error};
 use mastodon_async::{Mastodon, prelude::*};
 
+use clap::{Command, Arg, builder::PossibleValue};
 pub struct Handler();
 impl Handler {
+    pub fn get_log_level(&self) -> LevelFilter {
+        let matches = clap::Command::new("MastoVision")
+            .version("0.1.0")
+            .author("pecet")
+            .about("Generates image descriptions for Mastodon")
+            .arg(
+                Arg::new("verbosity level")
+                    .short('v')
+                    .long("verbosity")
+                    .value_parser([
+                        PossibleValue::new("info"),
+                        PossibleValue::new("debug"),
+                        PossibleValue::new("trace"),
+                        PossibleValue::new("warn"),
+                        PossibleValue::new("error"),
+                    ])
+                    .default_value("warn")
+
+            )
+            .get_matches();
+        // convert matches to LevelFilter
+        matches.get_one("verbosity level").cloned()
+            .map_or(LevelFilter::Warn, |level: String| {
+                match level.as_str() {
+                    "info" => LevelFilter::Info,
+                    "debug" => LevelFilter::Debug,
+                    "trace" => LevelFilter::Trace,
+                    "warn" => LevelFilter::Warn,
+                    "error" => LevelFilter::Error,
+                    _ => LevelFilter::Warn,
+            }
+        })
+    }
+
     pub fn setup_logging(&self) -> Result<(), fern::InitError> {
         fern::Dispatch::new()
             // Format the output
@@ -24,7 +59,7 @@ impl Handler {
                 ))
             })
             // Set the default logging level
-            .level(LevelFilter::Trace)
+            .level(self.get_log_level())
             // Set the logging level for the `hyper` crate
             .level_for("mastodon_async", LevelFilter::Warn)
             .level_for("rustls", LevelFilter::Warn)
