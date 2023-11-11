@@ -19,3 +19,5 @@ kv-log-macro = "1.0.7"
 futures-util = "0.3.29"
 reqwest = { version = "0.11.22", features = ["json"] }
 clap = { version = "4.4.8", features = ["derive"] }
+json-patch = "1.2.0"
+voca_rs = "1.15.2"

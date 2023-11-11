@@ -1,7 +1,7 @@
 use mastodon_async::Data;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 struct MastodonConfig {
     base_url: String,
     client_id: String,
@@ -9,13 +9,13 @@ struct MastodonConfig {
     access_token: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 struct GptConfig {
     access_token: String,
     model: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Config {
     mastodon: MastodonConfig,
     gpt: GptConfig,
@@ -44,5 +44,11 @@ impl Config {
     }
     pub fn get_gpt_api_key(&self) -> String {
         self.gpt.access_token.clone()
+    }
+    pub fn get_mastodon_base_url(&self) -> String {
+        self.mastodon.base_url.clone()
+    }
+    pub fn get_mastodon_access_token(&self) -> String {
+        self.mastodon.access_token.clone()
     }
 }
