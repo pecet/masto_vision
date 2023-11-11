@@ -2,7 +2,7 @@ use log::*;
 
 use kv_log_macro as log;
 use masto_vision::handler::Handler;
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread")]
 async fn main() {
     let handler = Handler {};
     let _ = handler.setup_logging();

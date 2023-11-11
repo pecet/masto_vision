@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 mastodon-async = { version = "1", default-features = false, features = ["rustls-tls"] }
-tokio = { version = "1.34", features = ["full"] }
+tokio = { version = "1.34", features = ["full", "rt-multi-thread"] }
 tokio-util = { version = "0.7", features = ["full"] }
 codec = "0.0.0"
 serde = { version = "1.0.192", features = ["derive"] }
