@@ -1,15 +1,15 @@
-use std::{error::Error, collections::HashMap, thread::sleep};
+use std::{error::Error, collections::HashMap};
 
-use crate::{vision::Vision, config::Config, mastodon_patch::{self, MastodonPatch}};
+use crate::{vision::Vision, config::Config, mastodon_patch::{MastodonPatch}};
 use chrono::Local;
 
-use futures_util::{TryFutureExt, TryStreamExt, FutureExt};
+use futures_util::{TryFutureExt, TryStreamExt};
 use kv_log_macro::warn;
 use log::{LevelFilter, debug, info, error};
-use mastodon_async::{Mastodon, prelude::*, entities::filter};
+use mastodon_async::{Mastodon, prelude::*};
 
-use clap::{Command, Arg, builder::PossibleValue};
-use std::time::Duration;
+use clap::{Arg, builder::PossibleValue};
+
 pub struct Handler();
 impl Handler {
      fn get_log_level(&self) -> LevelFilter {
@@ -83,7 +83,7 @@ impl Handler {
         let config = Config::from_json();
         let data = config.to_mastodon_data();
         let mastodon = Mastodon::from(data);
-        let mastodon_patch = MastodonPatch::new(config);
+        let _mastodon_patch = MastodonPatch::new(config);
         //let mastodon_patch_ref = &mastodon_patch;
         log::info!("Logging in to Mastodon");
         let you = mastodon.verify_credentials().await?;
@@ -100,61 +100,53 @@ impl Handler {
                 .try_for_each(|(event, _client)| async move {
                     let user_id = user_id.clone();
                     debug!("Event received:\n{:#?}", &event);
-                    match event {
-                        Event::Update(update) => {
-                            debug!("Update event received:\n{:#?}", &update);
-                            if format!("{}", update.account.id) == user_id {
-                                let attachments: Vec<_> = update.media_attachments.into_iter().collect();
-                                let handles: Vec<_> = attachments.into_iter().map(|attachment| {
-                                    tokio::spawn(async move {
-                                        if attachment.media_type == MediaType::Image &&
-                                            (attachment.description.is_none() || attachment.description.unwrap().is_empty()) {
-                                                if let Some(url) = attachment.url.clone() {
-                                                    debug!("Generating description for attachment {} with URL: {}", attachment.id, attachment.url.unwrap());
-                                                    let description = Vision().get_description(url).await.unwrap_or_else(|err| {
-                                                        error!("Failed to generate description for attachment {}: {:#?}", attachment.id, err);
-                                                        "".to_string()
-                                                    });
-                                                    info!("Generated description for attachment {}: {}", attachment.id, description);
-                                                    return (attachment.id.clone(), Some(description))
-                                                } else {
-                                                    warn!("Cannot get URL for attachment {}", attachment.id);
-                                                }
-                                        }
-                                        (attachment.id.clone(), None)
-                                    })
-                                }).collect();
-                                let results = futures_util::future::join_all(handles).await
-                                    .into_iter()
-                                    .map(|res| res.expect("Task panicked"));
-                                let descriptions: Vec<_> = results.collect();
-                                debug!("Number of descriptions got: {}", descriptions.len());
-                                let descriptions_filtered: HashMap<_, _> = descriptions.into_iter()
-                                    .filter(|d| d.1.is_some())
-                                    .map(|d| (d.0.to_string(), d.1.unwrap()))
-                                    .collect();
-                                debug!("Number of non-empty descriptions got: {}", descriptions_filtered.len());
-                                // TODO: avoid creating new instance of Config here
-                                let mp = MastodonPatch::new(Config::from_json());
-                                let message_id = update.id.to_string();
-                                let current_json = mp.get_json_of_message(message_id.clone())
-                                    .await.unwrap_or_default().unwrap_or_default();
-                                mp.put_json_of_message(current_json, message_id.clone(), descriptions_filtered).await;
-                                info!("Successfully added description to message {}", message_id);
-                            }
+                    if let Event::Update(update) = event {
+                        debug!("Update event received:\n{:#?}", &update);
+                        if format!("{}", update.account.id) == user_id {
+                            let attachments: Vec<_> = update.media_attachments.into_iter().collect();
+                            let handles: Vec<_> = attachments.into_iter().map(|attachment| {
+                                tokio::spawn(async move {
+                                    if attachment.media_type == MediaType::Image &&
+                                        (attachment.description.is_none() || attachment.description.unwrap().is_empty()) {
+                                            if let Some(url) = attachment.url.clone() {
+                                                debug!("Generating description for attachment {} with URL: {}", attachment.id, attachment.url.unwrap());
+                                                let description = Vision().get_description(url).await.unwrap_or_else(|err| {
+                                                    error!("Failed to generate description for attachment {}: {:#?}", attachment.id, err);
+                                                    "".to_string()
+                                                });
+                                                info!("Generated description for attachment {}: {}", attachment.id, description);
+                                                return (attachment.id.clone(), Some(description))
+                                            } else {
+                                                warn!("Cannot get URL for attachment {}", attachment.id);
+                                            }
+                                    }
+                                    (attachment.id.clone(), None)
+                                })
+                            }).collect();
+                            let results = futures_util::future::join_all(handles).await
+                                .into_iter()
+                                .map(|res| res.expect("Task panicked"));
+                            let descriptions: Vec<_> = results.collect();
+                            debug!("Number of descriptions got: {}", descriptions.len());
+                            let descriptions_filtered: HashMap<_, _> = descriptions.into_iter()
+                                .filter(|d| d.1.is_some())
+                                .map(|d| (d.0.to_string(), d.1.unwrap()))
+                                .collect();
+                            debug!("Number of non-empty descriptions got: {}", descriptions_filtered.len());
+                            // TODO: avoid creating new instance of Config here
+                            let mp = MastodonPatch::new(Config::from_json());
+                            let message_id = update.id.to_string();
+                            let current_json = mp.get_json_of_message(message_id.clone())
+                                .await.unwrap_or_default().unwrap_or_default();
+                            mp.put_json_of_message(current_json, message_id.clone(), descriptions_filtered).await;
+                            info!("Successfully added description to message {}", message_id);
                         }
-                        _ => {}
                     }
                     Ok(())
                 })
                 .unwrap_or_else(
                     |e| error!("Ignoring error while streaming: \n{:#?}", e)
                 ).await;
-                // .or_else(|e| async {
-                //     error!("Ignoring error while streaming:\n{:#?}", e);
-                //     Err(e)
-                // })
-                // .await.unwrap_or_default();
         }
         // This will never be reached
         Ok(())
