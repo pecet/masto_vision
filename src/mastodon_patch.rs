@@ -66,25 +66,28 @@ impl MastodonPatch {
         let content = previous_json.get("content").unwrap_or(empty).as_str().unwrap_or_default();
         let content = content.replace("<br />", "\n");
         let content = strip_tags(&content);
-        let media_ids: Vec<String> = image_id_with_description.keys().into_iter().cloned().collect();
-        let media_attributes: Vec<_> = image_id_with_description.iter().map(|(key, value)| {
-            // yes name of this key also differs between GET and PUT request
-            let mut media_attributes = previous_json.get("media_attachments")
-                .unwrap().as_object()
-                .unwrap().clone();
-            //let previous =
-            // insert all previous values to media_attributes
-            image_id_with_description.iter().for_each(|(k,v)| {
-                media_attributes.insert(k.clone(), v.clone().into());
-            });
-            media_attributes
-        }).collect();
+        let mut media_ids: Vec<String> = Vec::new();
+        let mut media_attachments = previous_json.get("media_attachments")
+            .unwrap_or(empty).as_array()
+            .cloned().unwrap_or_default();
+        media_attachments.iter_mut().for_each(
+            |attachment| {
+                let attachment = attachment.as_object_mut().unwrap();
+                let id = attachment.get("id").unwrap().as_str().unwrap().to_string();
+                if image_id_with_description.contains_key(&id) {
+                    let description = image_id_with_description.get(&id).unwrap();
+                    attachment.insert("description".to_string(), description.clone().into());
+                    media_ids.push(id);
+                }
+            }
+        );
+
         let patched_json = json!(
             {
                 "status": content,
                 "in_reply_to_id": previous_json.get("in_reply_to_id"),
                 "media_ids": media_ids,
-                "media_attributes": media_attributes,
+                "media_attributes": media_attachments,
                 "sensitive": previous_json.get("sensitive"),
                 "spoiler_text": previous_json.get("spoiler_text"),
                 "visibility": previous_json.get("visibility"),

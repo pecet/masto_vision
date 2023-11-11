@@ -1,3 +1,4 @@
 /target
 *.log
 config.json
+config_*.json

@@ -91,10 +91,10 @@ impl Handler {
         log::debug!("Logged in as user id: {}", you.id);
         let mut counter = 0_u64;
 
-        let msg = mastodon_patch.get_json_of_message("111392884943205070".to_string()).await?.unwrap();
+        let msg = mastodon_patch.get_json_of_message("111392689890329357".to_string()).await?.unwrap();
         let mut image_id_with_description = HashMap::new();
-        image_id_with_description.insert("111392884943205070".to_string(), "xD".to_string());
-        mastodon_patch.put_json_of_message(msg, "111392884943205070".to_string(), image_id_with_description).await;
+        image_id_with_description.insert("111392689724034054".to_string(), "testowanko xDDDDDDF".to_string());
+        mastodon_patch.put_json_of_message(msg, "111392689890329357".to_string(), image_id_with_description).await;
 
         return Ok(());
 
