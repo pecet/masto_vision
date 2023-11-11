@@ -1,18 +1,18 @@
-use std::{error::Error, collections::HashMap};
+use std::{collections::HashMap, error::Error};
 
-use crate::{vision::Vision, config::Config, mastodon_patch::{MastodonPatch}};
+use crate::{config::Config, mastodon_patch::MastodonPatch, vision::Vision};
 use chrono::Local;
 
 use futures_util::{TryFutureExt, TryStreamExt};
 use kv_log_macro::warn;
-use log::{LevelFilter, debug, info, error};
-use mastodon_async::{Mastodon, prelude::*};
+use log::{debug, error, info, LevelFilter};
+use mastodon_async::{prelude::*, Mastodon};
 
-use clap::{Arg, builder::PossibleValue};
+use clap::{builder::PossibleValue, Arg};
 
 pub struct Handler();
 impl Handler {
-     fn get_log_level(&self) -> LevelFilter {
+    fn get_log_level(&self) -> LevelFilter {
         let matches = clap::Command::new("MastoVision")
             .version("0.1.0")
             .author("pecet")
@@ -28,22 +28,21 @@ impl Handler {
                         PossibleValue::new("warn"),
                         PossibleValue::new("error"),
                     ])
-                    .default_value("warn")
-
+                    .default_value("warn"),
             )
             .get_matches();
         // convert matches to LevelFilter
-        matches.get_one("verbosity level").cloned()
-            .map_or(LevelFilter::Warn, |level: String| {
-                match level.as_str() {
-                    "info" => LevelFilter::Info,
-                    "debug" => LevelFilter::Debug,
-                    "trace" => LevelFilter::Trace,
-                    "warn" => LevelFilter::Warn,
-                    "error" => LevelFilter::Error,
-                    _ => LevelFilter::Warn,
-            }
-        })
+        matches
+            .get_one("verbosity level")
+            .cloned()
+            .map_or(LevelFilter::Warn, |level: String| match level.as_str() {
+                "info" => LevelFilter::Info,
+                "debug" => LevelFilter::Debug,
+                "trace" => LevelFilter::Trace,
+                "warn" => LevelFilter::Warn,
+                "error" => LevelFilter::Error,
+                _ => LevelFilter::Warn,
+            })
     }
 
     pub fn setup_logging(&self) -> Result<(), fern::InitError> {
