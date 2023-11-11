@@ -6,7 +6,7 @@ use serde_json::{json, Value};
 pub struct Vision();
 
 impl Vision {
-    pub async fn get_description(&self, image_url: String) -> Result<String, Box<dyn Error>> {
+    pub async fn get_description(&self, image_url: String, lang_code: String) -> Result<String, Box<dyn Error>> {
         let config = crate::config::Config::from_json();
         let client = reqwest::Client::new();
 
@@ -21,7 +21,9 @@ impl Vision {
                         "content": [
                             {
                                 "type": "text",
-                                "text": "Please describe this image to visually impaired user. Please be as descriptive as possible, but keep it relatively short."
+                                "text": format!("Please describe this image to visually impaired user.
+                                Please be as descriptive as possible, but keep it relatively short.
+                                You must write description in language with following two letter code: '{}'", lang_code)
                             },
                             {
                                 "type": "image_url",

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, error::Error};
+use std::{collections::HashMap, error::Error, sync::Arc};
 
 use crate::{config::Config, mastodon_patch::MastodonPatch, vision::Vision};
 use chrono::Local;
@@ -103,15 +103,19 @@ impl Handler {
                     debug!("Event received:\n{:#?}", &event);
                     if let Event::Update(update) = event {
                         debug!("Update event received:\n{:#?}", &update);
+                        let lang = update.language.clone().unwrap_or("en".to_string());
+                        let lang_arc = Arc::new(lang.clone());
                         if format!("{}", update.account.id) == user_id {
-                            let attachments: Vec<_> = update.media_attachments.into_iter().collect();
+                            let attachments: Vec<_> = update.media_attachments.clone().into_iter().collect();
                             let handles: Vec<_> = attachments.into_iter().map(|attachment| {
+                                let lang_arc_clone = lang_arc.clone();
                                 tokio::spawn(async move {
                                     if attachment.media_type == MediaType::Image &&
                                         (attachment.description.is_none() || attachment.description.unwrap().is_empty()) {
                                             if let Some(url) = attachment.url.clone() {
+                                                let lang = lang_arc_clone.as_ref().clone();
                                                 debug!("Generating description for attachment {} with URL: {}", attachment.id, attachment.url.unwrap());
-                                                let description = Vision().get_description(url).await.unwrap_or_else(|err| {
+                                                let description = Vision().get_description(url, lang).await.unwrap_or_else(|err| {
                                                     error!("Failed to generate description for attachment {}: {:#?}", attachment.id, err);
                                                     "".to_string()
                                                 });
@@ -136,7 +140,7 @@ impl Handler {
                             debug!("Number of non-empty descriptions got: {}", descriptions_filtered.len());
                             // TODO: avoid creating new instance of Config here
                             let mp = MastodonPatch::new(Config::from_json());
-                            let message_id = update.id.to_string();
+                            let message_id = update.clone().id.to_string();
                             let current_json = mp.get_json_of_message(message_id.clone())
                                 .await.unwrap_or_default().unwrap_or_default();
                             mp.put_json_of_message(current_json, message_id.clone(), descriptions_filtered).await;
