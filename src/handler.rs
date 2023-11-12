@@ -13,6 +13,7 @@ use mastodon_async::entities::status::Status;
 
 use clap::{builder::PossibleValue, Arg};
 
+#[derive(Clone)]
 pub struct Handler();
 impl Handler {
     fn get_log_level(&self) -> LevelFilter {
@@ -56,9 +57,12 @@ impl Handler {
         fern::Dispatch::new()
             // Format the output
             .format(|out, message, record| {
+                let thread_id = format!("{:?}", std::thread::current().id())
+                    .replace("ThreadId", "");
                 out.finish(format_args!(
-                    "{}[{}:{}] {}: {}",
+                    "{}{}[{}:{}] {}: {}",
                     Local::now().format("[%Y-%m-%d %H:%M:%S]"), // Timestamp format
+                    thread_id,
                     record.target(),
                     record.line().unwrap_or_default(),
                     record.level(),
@@ -156,7 +160,12 @@ impl Handler {
                     let user_id = user_id.clone();
                     debug!("Event received:\n{:#?}", &event);
                     if let Event::Update(update) = event {
-                        self.handle_update(update.clone(), user_id.clone()).await;
+                        let self_clone = self.clone();
+                        let update_clone = update.clone();
+                        let user_id_clone = user_id.clone();
+                        tokio::spawn(async move {
+                            self_clone.handle_update(update_clone, user_id_clone).await;
+                        });
                     }
                     Ok(())
                 })
