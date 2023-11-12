@@ -1,3 +1,4 @@
+use std::time::Duration;
 use std::{collections::HashMap, error::Error, sync::Arc};
 
 use crate::{config::Config, mastodon_patch::MastodonPatch, vision::Vision};
@@ -101,13 +102,31 @@ impl Handler {
                             if let Some(url) = attachment.url.clone() {
                                 let lang = lang_arc_clone.as_ref().clone();
                                 let context = context_arc.as_ref().clone();
-                                debug!("Generating description for attachment {} with URL: {}", attachment.id, attachment.url.unwrap());
-                                let description = Vision().get_description(url, lang, context).await.unwrap_or_else(|err| {
-                                    error!("Failed to generate description for attachment {}: {:#?}", attachment.id, err);
-                                    "".to_string()
-                                });
-                                info!("Generated description for attachment {}: {}", attachment.id, description);
-                                return (attachment.id.clone(), Some(description))
+                                let mut retry: u64 = 0;
+                                let attachment_id = attachment.id.clone();
+                                let attachment_url = attachment.url.clone().unwrap();
+                                loop {
+                                    retry += 1;
+                                    debug!("Generating description for attachment {} with URL: {}", &attachment_id, &attachment_url);
+                                    debug!("Retry: {}", retry);
+                                    let result = Vision().get_description(url.clone(), lang.clone(), context.clone()).await;
+                                    match result {
+                                        Ok(ref description) => {
+                                            info!("Generated description for attachment {}: {}", attachment.id, description);
+                                            return (attachment.id.clone(), Some(description.clone()))
+                                        },
+                                        Err(ref err) => {
+                                            error!("Failed to generate description for attachment {}: {:#?}", attachment.id, err);
+                                            if retry >= 10 {
+                                                error!("Maximum retry count reached, giving up");
+                                                return (attachment.id.clone(), None);
+                                            }
+                                            error!("Retrying after slight delay");
+                                            std::thread::sleep(Duration::from_millis(2000));
+                                        }
+                                    };
+                                }
+
                             } else {
                                 warn!("Cannot get URL for attachment {}", attachment.id);
                             }

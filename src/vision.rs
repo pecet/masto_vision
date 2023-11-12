@@ -39,8 +39,14 @@ impl Vision {
             }))
             .send()
             .await?;
+        if !response.status().is_success() {
+            return Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, "ChatGPT API returned error")));
+        }
         let body: Value = response.json().await?;
         debug!("Full response from ChatGPT API: {:#?}", body);
+        if body.as_object().unwrap().get("error").is_some() {
+            return Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, "ChatGPT API returned error")));
+        }
         let choices = body
             .as_object()
             .unwrap()
