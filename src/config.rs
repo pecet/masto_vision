@@ -18,6 +18,7 @@ struct GptConfig {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct GeneralConfig {
     max_tokens: usize,
+    trigger_word: String,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

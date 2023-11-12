@@ -7,6 +7,9 @@ use futures_util::{TryFutureExt, TryStreamExt};
 use kv_log_macro::warn;
 use log::{debug, error, info, LevelFilter};
 use mastodon_async::{prelude::*, Mastodon};
+use mastodon_async::entities::event::Event;
+use mastodon_async::entities::event::Event::Update;
+use mastodon_async::entities::status::Status;
 
 use clap::{builder::PossibleValue, Arg};
 
@@ -77,6 +80,57 @@ impl Handler {
         Ok(())
     }
 
+    async fn handle_update(&self, update: Status, user_id: String) {
+        debug!("Update event received:\n{:#?}", &update);
+        let lang = update.language.clone().unwrap_or("en".to_string());
+        let context = update.content.clone();
+        let lang_arc = Arc::new(lang.clone());
+        let context_arc = Arc::new(context.clone());
+        if format!("{}", update.account.id) == user_id {
+            let attachments: Vec<_> = update.media_attachments.clone().into_iter().collect();
+            let handles: Vec<_> = attachments.into_iter().map(|attachment| {
+                let lang_arc_clone = lang_arc.clone();
+                let context_arc = context_arc.clone();
+                tokio::spawn(async move {
+                    if attachment.media_type == MediaType::Image &&
+                        (attachment.description.is_none() || attachment.description.unwrap().is_empty()) {
+                            if let Some(url) = attachment.url.clone() {
+                                let lang = lang_arc_clone.as_ref().clone();
+                                let context = context_arc.as_ref().clone();
+                                debug!("Generating description for attachment {} with URL: {}", attachment.id, attachment.url.unwrap());
+                                let description = Vision().get_description(url, lang, context).await.unwrap_or_else(|err| {
+                                    error!("Failed to generate description for attachment {}: {:#?}", attachment.id, err);
+                                    "".to_string()
+                                });
+                                info!("Generated description for attachment {}: {}", attachment.id, description);
+                                return (attachment.id.clone(), Some(description))
+                            } else {
+                                warn!("Cannot get URL for attachment {}", attachment.id);
+                            }
+                    }
+                    (attachment.id.clone(), None)
+                })
+            }).collect();
+            let results = futures_util::future::join_all(handles).await
+                .into_iter()
+                .map(|res| res.expect("Task panicked"));
+            let descriptions: Vec<_> = results.collect();
+            debug!("Number of descriptions got: {}", descriptions.len());
+            let descriptions_filtered: HashMap<_, _> = descriptions.into_iter()
+                .filter(|d| d.1.is_some())
+                .map(|d| (d.0.to_string(), d.1.unwrap()))
+                .collect();
+            debug!("Number of non-empty descriptions got: {}", descriptions_filtered.len());
+            // TODO: avoid creating new instance of Config here
+            let mp = MastodonPatch::new(Config::from_json());
+            let message_id = update.clone().id.to_string();
+            let current_json = mp.get_json_of_message(message_id.clone())
+                .await.unwrap_or_default().unwrap_or_default();
+            mp.put_json_of_message(current_json, message_id.clone(), descriptions_filtered).await;
+            info!("Successfully added description to message {}", message_id);
+        }
+    }
+
     #[allow(unreachable_code)]
     pub async fn main_loop(&self) -> Result<(), Box<dyn Error>> {
         log::info!("Main loop started");
@@ -102,54 +156,7 @@ impl Handler {
                     let user_id = user_id.clone();
                     debug!("Event received:\n{:#?}", &event);
                     if let Event::Update(update) = event {
-                        debug!("Update event received:\n{:#?}", &update);
-                        let lang = update.language.clone().unwrap_or("en".to_string());
-                        let context = update.content.clone();
-                        let lang_arc = Arc::new(lang.clone());
-                        let context_arc = Arc::new(context.clone());
-                        if format!("{}", update.account.id) == user_id {
-                            let attachments: Vec<_> = update.media_attachments.clone().into_iter().collect();
-                            let handles: Vec<_> = attachments.into_iter().map(|attachment| {
-                                let lang_arc_clone = lang_arc.clone();
-                                let context_arc = context_arc.clone();
-                                tokio::spawn(async move {
-                                    if attachment.media_type == MediaType::Image &&
-                                        (attachment.description.is_none() || attachment.description.unwrap().is_empty()) {
-                                            if let Some(url) = attachment.url.clone() {
-                                                let lang = lang_arc_clone.as_ref().clone();
-                                                let context = context_arc.as_ref().clone();
-                                                debug!("Generating description for attachment {} with URL: {}", attachment.id, attachment.url.unwrap());
-                                                let description = Vision().get_description(url, lang, context).await.unwrap_or_else(|err| {
-                                                    error!("Failed to generate description for attachment {}: {:#?}", attachment.id, err);
-                                                    "".to_string()
-                                                });
-                                                info!("Generated description for attachment {}: {}", attachment.id, description);
-                                                return (attachment.id.clone(), Some(description))
-                                            } else {
-                                                warn!("Cannot get URL for attachment {}", attachment.id);
-                                            }
-                                    }
-                                    (attachment.id.clone(), None)
-                                })
-                            }).collect();
-                            let results = futures_util::future::join_all(handles).await
-                                .into_iter()
-                                .map(|res| res.expect("Task panicked"));
-                            let descriptions: Vec<_> = results.collect();
-                            debug!("Number of descriptions got: {}", descriptions.len());
-                            let descriptions_filtered: HashMap<_, _> = descriptions.into_iter()
-                                .filter(|d| d.1.is_some())
-                                .map(|d| (d.0.to_string(), d.1.unwrap()))
-                                .collect();
-                            debug!("Number of non-empty descriptions got: {}", descriptions_filtered.len());
-                            // TODO: avoid creating new instance of Config here
-                            let mp = MastodonPatch::new(Config::from_json());
-                            let message_id = update.clone().id.to_string();
-                            let current_json = mp.get_json_of_message(message_id.clone())
-                                .await.unwrap_or_default().unwrap_or_default();
-                            mp.put_json_of_message(current_json, message_id.clone(), descriptions_filtered).await;
-                            info!("Successfully added description to message {}", message_id);
-                        }
+                        self.handle_update(update.clone(), user_id.clone()).await;
                     }
                     Ok(())
                 })

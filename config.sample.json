@@ -10,6 +10,7 @@
         "model": "gpt-4-vision-preview"
     },
     "general": {
-        "max_tokens": 384
+        "max_tokens": 384,
+        "trigger_word": "!ad"
     }
 }
