@@ -2,13 +2,20 @@ use std::error::Error;
 
 use log::debug;
 use serde_json::{json, Value};
+use voca_rs::strip::strip_tags;
 pub struct Vision();
 
 impl Vision {
     pub async fn get_description(&self, image_url: String, lang_code: String, context: String) -> Result<String, Box<dyn Error>> {
         let config = crate::config::Config::from_json();
         let client = reqwest::Client::new();
-
+        let context = strip_tags(&context);
+        let prompt = format!("Please describe this image to visually impaired user.
+        Please be as descriptive as possible, but keep it relatively short.
+        You must write description in language with following two letter code: '{}'
+        Use following context of message if needed: '{}'", lang_code, context);
+        let prompt = textwrap::dedent(&prompt);
+        debug!("Prompt: {}", &prompt);
         let response = client.post("https://api.openai.com/v1/chat/completions")
             .header("Content-Type", "application/json")
             .header("Authorization", format!("Bearer {}", config.get_gpt_api_key()))
@@ -20,11 +27,7 @@ impl Vision {
                         "content": [
                             {
                                 "type": "text",
-                                "text": format!("Please describe this image to visually impaired user.
-                                Please be as descriptive as possible, but keep it relatively short.
-                                You must write description in language with following two letter code: '{}'
-                                Use following context of message if needed:
-                                '{}'", lang_code, context)
+                                "text": prompt
                             },
                             {
                                 "type": "image_url",
