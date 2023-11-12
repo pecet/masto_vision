@@ -104,18 +104,22 @@ impl Handler {
                     if let Event::Update(update) = event {
                         debug!("Update event received:\n{:#?}", &update);
                         let lang = update.language.clone().unwrap_or("en".to_string());
+                        let context = update.content.clone();
                         let lang_arc = Arc::new(lang.clone());
+                        let context_arc = Arc::new(context.clone());
                         if format!("{}", update.account.id) == user_id {
                             let attachments: Vec<_> = update.media_attachments.clone().into_iter().collect();
                             let handles: Vec<_> = attachments.into_iter().map(|attachment| {
                                 let lang_arc_clone = lang_arc.clone();
+                                let context_arc = context_arc.clone();
                                 tokio::spawn(async move {
                                     if attachment.media_type == MediaType::Image &&
                                         (attachment.description.is_none() || attachment.description.unwrap().is_empty()) {
                                             if let Some(url) = attachment.url.clone() {
                                                 let lang = lang_arc_clone.as_ref().clone();
+                                                let context = context_arc.as_ref().clone();
                                                 debug!("Generating description for attachment {} with URL: {}", attachment.id, attachment.url.unwrap());
-                                                let description = Vision().get_description(url, lang).await.unwrap_or_else(|err| {
+                                                let description = Vision().get_description(url, lang, context).await.unwrap_or_else(|err| {
                                                     error!("Failed to generate description for attachment {}: {:#?}", attachment.id, err);
                                                     "".to_string()
                                                 });

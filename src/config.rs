@@ -16,9 +16,15 @@ struct GptConfig {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct GeneralConfig {
+    max_tokens: usize,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Config {
     mastodon: MastodonConfig,
     gpt: GptConfig,
+    general: GeneralConfig,
 }
 
 impl Config {
@@ -50,5 +56,8 @@ impl Config {
     }
     pub fn get_mastodon_access_token(&self) -> String {
         self.mastodon.access_token.clone()
+    }
+    pub fn get_max_tokens(&self) -> usize {
+        self.general.max_tokens
     }
 }

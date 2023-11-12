@@ -1,12 +1,11 @@
 use std::error::Error;
 
-use kv_log_macro::info;
 use log::debug;
 use serde_json::{json, Value};
 pub struct Vision();
 
 impl Vision {
-    pub async fn get_description(&self, image_url: String, lang_code: String) -> Result<String, Box<dyn Error>> {
+    pub async fn get_description(&self, image_url: String, lang_code: String, context: String) -> Result<String, Box<dyn Error>> {
         let config = crate::config::Config::from_json();
         let client = reqwest::Client::new();
 
@@ -23,7 +22,9 @@ impl Vision {
                                 "type": "text",
                                 "text": format!("Please describe this image to visually impaired user.
                                 Please be as descriptive as possible, but keep it relatively short.
-                                You must write description in language with following two letter code: '{}'", lang_code)
+                                You must write description in language with following two letter code: '{}'
+                                Use following context of message if needed:
+                                '{}'", lang_code, context)
                             },
                             {
                                 "type": "image_url",
@@ -34,7 +35,7 @@ impl Vision {
                         ]
                     }
                 ],
-                "max_tokens": 256,
+                "max_tokens": config.get_max_tokens(),
             }))
             .send()
             .await?;
@@ -50,7 +51,6 @@ impl Vision {
         let first_choice = choices.first().unwrap().as_object().unwrap();
         let message = first_choice.get("message").unwrap().as_object().unwrap();
         let content = message.get("content").unwrap().as_str().unwrap();
-        info!("Got description: {}", &content);
         Ok(content.to_string())
     }
 }
