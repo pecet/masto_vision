@@ -12,5 +12,12 @@
     "general": {
         "max_tokens": 384,
         "trigger_word": "!ad"
+    },
+    "manual_refresh": {
+        "enabled": true,
+        "interval": 120,
+        "statuses": 10,
+        "initial_delay": 10,
+        "initial_statuses": 3
     }
 }
