@@ -171,6 +171,7 @@ impl Handler {
             std::thread::sleep(Duration::from_secs(10));
             self_clone2.manual_loop().unwrap_or_else(|err| {
                 error!("Critical error in streaming loop\n{:#?}", err);
+                panic!("{:#?}", err);
             }).await;
         });
         let _ = tokio::join!(streaming_loop, manual_loop);
@@ -184,7 +185,6 @@ impl Handler {
         let config = Config::from_json();
         let data = config.to_mastodon_data();
         let mastodon = Mastodon::from(data);
-        //let mastodon_patch_ref = &mastodon_patch;
         log::info!("Logging in to Mastodon");
         let you = mastodon.verify_credentials().await?;
         let user_id = &format!("{}", &you.id);
@@ -193,12 +193,12 @@ impl Handler {
 
         let mut initial = true;
         let manual = config.get_manual_refresh_config();
+        if !manual.enabled {
+            log::info!("Manual refresh disabled, skipping");
+            return Ok(());
+        }
         std::thread::sleep(Duration::from_secs(manual.initial_delay));
         loop {
-            if !manual.enabled {
-                log::info!("Manual refresh disabled, skipping");
-                return Ok(());
-            }
             log::info!("Manually refreshing statuses");
             let mut request = StatusesRequest::new();
             request.only_media();
