@@ -4,7 +4,7 @@ use std::{collections::HashMap, error::Error, sync::Arc};
 use crate::{config::Config, mastodon_patch::MastodonPatch, vision::Vision};
 use chrono::Local;
 
-use futures_util::{TryFutureExt, TryStreamExt};
+use futures_util::{TryFutureExt, TryStreamExt, StreamExt};
 use kv_log_macro::warn;
 use log::{debug, error, info, LevelFilter};
 use mastodon_async::{prelude::*, Mastodon};
@@ -144,24 +144,89 @@ impl Handler {
                 .map(|d| (d.0.to_string(), d.1.unwrap()))
                 .collect();
             debug!("Number of non-empty descriptions got: {}", descriptions_filtered.len());
+            let message_id = update.clone().id.to_string();
+            if descriptions_filtered.is_empty() {
+                debug!("No descriptions generated for message {}", message_id);
+                return;
+            }
             // TODO: avoid creating new instance of Config here
             let mp = MastodonPatch::new(Config::from_json());
-            let message_id = update.clone().id.to_string();
-            let current_json = mp.get_json_of_message(message_id.clone())
+            let current_json = mp.get_json_of_message_with_retry(message_id.clone(), 10)
                 .await.unwrap_or_default().unwrap_or_default();
-            mp.put_json_of_message(current_json, message_id.clone(), descriptions_filtered).await;
+            mp.put_json_of_message_with_retry(current_json, message_id.clone(), descriptions_filtered, 10).await.unwrap();
             info!("Successfully added description to message {}", message_id);
         }
     }
 
+    pub async fn run(&self) -> Result<(), Box<dyn Error>> {
+        let self_arc = Arc::new(self.clone());
+        let self_clone = self_arc.clone();
+        let self_clone2 = self_arc.clone();
+        let streaming_loop = tokio::spawn(async move {
+            self_clone.streaming_loop().unwrap_or_else(|err| {
+                error!("Critical error in streaming loop\n{:#?}", err);
+            }).await;
+        });
+        let manual_loop = tokio::spawn(async move {
+            std::thread::sleep(Duration::from_secs(10));
+            self_clone2.manual_loop().unwrap_or_else(|err| {
+                error!("Critical error in streaming loop\n{:#?}", err);
+            }).await;
+        });
+        let _ = tokio::join!(streaming_loop, manual_loop);
+        Ok(())
+    }
+
     #[allow(unreachable_code)]
-    pub async fn main_loop(&self) -> Result<(), Box<dyn Error>> {
-        log::info!("Main loop started");
+    pub async fn manual_loop(&self) -> Result<(), Box<dyn Error>> {
+        log::info!("Manual loop started");
         log::debug!("Loading config");
         let config = Config::from_json();
         let data = config.to_mastodon_data();
         let mastodon = Mastodon::from(data);
-        let _mastodon_patch = MastodonPatch::new(config);
+        //let mastodon_patch_ref = &mastodon_patch;
+        log::info!("Logging in to Mastodon");
+        let you = mastodon.verify_credentials().await?;
+        let user_id = &format!("{}", &you.id);
+        log::info!("Logged in");
+        log::debug!("Logged in as user id: {}", you.id);
+
+        let mut initial = true;
+        let manual = config.get_manual_refresh_config();
+        std::thread::sleep(Duration::from_secs(manual.initial_delay));
+        loop {
+            if !manual.enabled {
+                log::info!("Manual refresh disabled, skipping");
+                return Ok(());
+            }
+            log::info!("Manually refreshing statuses");
+            let mut request = StatusesRequest::new();
+            request.only_media();
+            let statuses = if initial {
+                manual.initial_statuses
+            } else {
+                manual.statuses
+            };
+            request.limit(statuses);
+            let statuses = mastodon.statuses(&you.id, request).await?;
+            let iter = statuses.items_iter();
+            iter.for_each(|status| async move {
+                self.handle_update(status.clone(), user_id.clone()).await;
+                std::thread::sleep(Duration::from_secs(1));
+            }).await;
+            std::thread::sleep(Duration::from_secs(manual.interval));
+            initial = false;
+        }
+        Ok(())
+    }
+
+    #[allow(unreachable_code)]
+    pub async fn streaming_loop(&self) -> Result<(), Box<dyn Error>> {
+        log::info!("Streaming loop started");
+        log::debug!("Loading config");
+        let config = Config::from_json();
+        let data = config.to_mastodon_data();
+        let mastodon = Mastodon::from(data);
         //let mastodon_patch_ref = &mastodon_patch;
         log::info!("Logging in to Mastodon");
         let you = mastodon.verify_credentials().await?;

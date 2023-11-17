@@ -22,10 +22,20 @@ pub struct GeneralConfig {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct ManualRefreshConfig {
+    pub enabled: bool,
+    pub interval: u64,
+    pub statuses: usize,
+    pub initial_delay: u64,
+    pub initial_statuses: usize,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Config {
     mastodon: MastodonConfig,
     gpt: GptConfig,
     general: GeneralConfig,
+    manual_refresh: ManualRefreshConfig,
 }
 
 impl Config {
@@ -60,5 +70,8 @@ impl Config {
     }
     pub fn get_max_tokens(&self) -> usize {
         self.general.max_tokens
+    }
+    pub fn get_manual_refresh_config(&self) -> ManualRefreshConfig {
+        self.manual_refresh.clone()
     }
 }

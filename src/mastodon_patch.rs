@@ -1,8 +1,8 @@
 use log::debug;
 use serde_json::json;
 use std::{collections::HashMap, error::Error};
-
 use voca_rs::strip::strip_tags;
+use std::time::Duration;
 
 #[derive(Debug, Clone)]
 pub struct MastodonPatch {
@@ -77,12 +77,28 @@ impl MastodonPatch {
         Ok(None)
     }
 
+    pub async fn get_json_of_message_with_retry(
+        &self,
+        message_id: String,
+        retries: u64,
+    ) -> Result<Option<String>, Box<dyn Error>> {
+        let mut retries = retries;
+        loop {
+            let result = self.get_json_of_message(message_id.clone()).await;
+            if result.is_ok() || retries <= 0 {
+                return result;
+            }
+            retries -= 1;
+            std::thread::sleep(Duration::from_secs(5));
+        }
+    }
+
     pub async fn put_json_of_message(
         &self,
         json_string: String,
         message_id: String,
         image_id_with_description: HashMap<String, String>,
-    ) {
+    ) -> Result<(), Box<dyn Error>> {
         let client = reqwest::Client::new();
         let url = format!(
             "{}/api/v1/statuses/{}",
@@ -142,23 +158,35 @@ impl MastodonPatch {
             .header("Content-Type", "application/json")
             .json(&patched_json)
             .send()
-            .await;
-        match response {
-            Ok(response) => {
-                if response.status().is_success() {
+            .await?;
+            if response.status().is_success() {
                     debug!("Successfull message put {}", message_id);
+                    Ok(())
                 } else {
-                    debug!(
-                        "Failed to put message {} - status {}:\n{}",
-                        message_id,
-                        response.status(),
-                        response.text().await.unwrap_or_default()
-                    );
+                    Err(format!("Failed to put message, http status:\n{:#?}", response.status()).into())
                 }
+
+    }
+
+    pub async fn put_json_of_message_with_retry(
+        &self,
+        json_string: String,
+        message_id: String,
+        image_id_with_description: HashMap<String, String>,
+        retries: u64,
+    ) -> Result<(), Box<dyn Error>> {
+        let mut retries = retries;
+        loop {
+            let result = self.put_json_of_message(
+                json_string.clone(),
+                message_id.clone(),
+                image_id_with_description.clone(),
+            ).await;
+            if result.is_ok() || retries <= 0 {
+                return result;
             }
-            Err(err) => {
-                debug!("Failed to put message {}: {:#?}", message_id, err);
-            }
+            retries -= 1;
+            std::thread::sleep(Duration::from_secs(5));
         }
     }
 }
