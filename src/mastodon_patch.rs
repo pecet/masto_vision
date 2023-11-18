@@ -1,8 +1,8 @@
 use log::debug;
 use serde_json::json;
+use std::time::Duration;
 use std::{collections::HashMap, error::Error};
 use voca_rs::strip::strip_tags;
-use std::time::Duration;
 
 #[derive(Debug, Clone)]
 pub struct MastodonPatch {
@@ -85,7 +85,7 @@ impl MastodonPatch {
         let mut retries = retries;
         loop {
             let result = self.get_json_of_message(message_id.clone()).await;
-            if result.is_ok() || retries <= 0 {
+            if result.is_ok() || retries == 0 {
                 return result;
             }
             retries -= 1;
@@ -159,13 +159,16 @@ impl MastodonPatch {
             .json(&patched_json)
             .send()
             .await?;
-            if response.status().is_success() {
-                    debug!("Successfull message put {}", message_id);
-                    Ok(())
-                } else {
-                    Err(format!("Failed to put message, http status:\n{:#?}", response.status()).into())
-                }
-
+        if response.status().is_success() {
+            debug!("Successfull message put {}", message_id);
+            Ok(())
+        } else {
+            Err(format!(
+                "Failed to put message, http status:\n{:#?}",
+                response.status()
+            )
+            .into())
+        }
     }
 
     pub async fn put_json_of_message_with_retry(
@@ -177,12 +180,14 @@ impl MastodonPatch {
     ) -> Result<(), Box<dyn Error>> {
         let mut retries = retries;
         loop {
-            let result = self.put_json_of_message(
-                json_string.clone(),
-                message_id.clone(),
-                image_id_with_description.clone(),
-            ).await;
-            if result.is_ok() || retries <= 0 {
+            let result = self
+                .put_json_of_message(
+                    json_string.clone(),
+                    message_id.clone(),
+                    image_id_with_description.clone(),
+                )
+                .await;
+            if result.is_ok() || retries == 0 {
                 return result;
             }
             retries -= 1;

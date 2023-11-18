@@ -6,19 +6,31 @@ use voca_rs::strip::strip_tags;
 pub struct Vision();
 
 impl Vision {
-    pub async fn get_description(&self, image_url: String, lang_code: String, context: String) -> Result<String, Box<dyn Error>> {
+    pub async fn get_description(
+        &self,
+        image_url: String,
+        lang_code: String,
+        context: String,
+    ) -> Result<String, Box<dyn Error>> {
         let config = crate::config::Config::from_json();
         let client = reqwest::Client::new();
         let context = strip_tags(&context);
-        let prompt = format!("Please describe this image to visually impaired user.
+        let prompt = format!(
+            "Please describe this image to visually impaired user.
         Please be as descriptive as possible, but keep it relatively short.
         You must write description in language with following two letter code: '{}'
-        Use following context of message if needed: '{}'", lang_code, context);
+        Use following context of message if needed: '{}'",
+            lang_code, context
+        );
         let prompt = textwrap::dedent(&prompt);
         debug!("Prompt: {}", &prompt);
-        let response = client.post("https://api.openai.com/v1/chat/completions")
+        let response = client
+            .post("https://api.openai.com/v1/chat/completions")
             .header("Content-Type", "application/json")
-            .header("Authorization", format!("Bearer {}", config.get_gpt_api_key()))
+            .header(
+                "Authorization",
+                format!("Bearer {}", config.get_gpt_api_key()),
+            )
             .json(&json!({
                 "model": config.get_model(),
                 "messages": [
@@ -43,12 +55,18 @@ impl Vision {
             .send()
             .await?;
         if !response.status().is_success() {
-            return Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, "ChatGPT API returned error")));
+            return Err(Box::new(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "ChatGPT API returned error",
+            )));
         }
         let body: Value = response.json().await?;
         debug!("Full response from ChatGPT API: {:#?}", body);
         if body.as_object().unwrap().get("error").is_some() {
-            return Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, "ChatGPT API returned error")));
+            return Err(Box::new(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "ChatGPT API returned error",
+            )));
         }
         let choices = body
             .as_object()

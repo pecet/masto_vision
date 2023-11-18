@@ -4,12 +4,12 @@ use std::{collections::HashMap, error::Error, sync::Arc};
 use crate::{config::Config, mastodon_patch::MastodonPatch, vision::Vision};
 use chrono::Local;
 
-use futures_util::{TryFutureExt, TryStreamExt, StreamExt};
+use futures_util::{StreamExt, TryFutureExt, TryStreamExt};
 use kv_log_macro::warn;
 use log::{debug, error, info, LevelFilter};
-use mastodon_async::{prelude::*, Mastodon};
 use mastodon_async::entities::event::Event;
-use mastodon_async::entities::event::Event::Update;
+use mastodon_async::{prelude::*, Mastodon};
+
 use mastodon_async::entities::status::Status;
 
 use clap::{builder::PossibleValue, Arg};
@@ -58,8 +58,8 @@ impl Handler {
         fern::Dispatch::new()
             // Format the output
             .format(|out, message, record| {
-                let thread_id = format!("{:?}", std::thread::current().id())
-                    .replace("ThreadId", "");
+                let thread_id =
+                    format!("{:?}", std::thread::current().id()).replace("ThreadId", "");
                 out.finish(format_args!(
                     "{}{}[{}:{}] {}: {}",
                     Local::now().format("[%Y-%m-%d %H:%M:%S]"), // Timestamp format
@@ -134,16 +134,21 @@ impl Handler {
                     (attachment.id.clone(), None)
                 })
             }).collect();
-            let results = futures_util::future::join_all(handles).await
+            let results = futures_util::future::join_all(handles)
+                .await
                 .into_iter()
                 .map(|res| res.expect("Task panicked"));
             let descriptions: Vec<_> = results.collect();
             debug!("Number of descriptions got: {}", descriptions.len());
-            let descriptions_filtered: HashMap<_, _> = descriptions.into_iter()
+            let descriptions_filtered: HashMap<_, _> = descriptions
+                .into_iter()
                 .filter(|d| d.1.is_some())
                 .map(|d| (d.0.to_string(), d.1.unwrap()))
                 .collect();
-            debug!("Number of non-empty descriptions got: {}", descriptions_filtered.len());
+            debug!(
+                "Number of non-empty descriptions got: {}",
+                descriptions_filtered.len()
+            );
             let message_id = update.clone().id.to_string();
             if descriptions_filtered.is_empty() {
                 debug!("No descriptions generated for message {}", message_id);
@@ -151,9 +156,19 @@ impl Handler {
             }
             // TODO: avoid creating new instance of Config here
             let mp = MastodonPatch::new(Config::from_json());
-            let current_json = mp.get_json_of_message_with_retry(message_id.clone(), 10)
-                .await.unwrap_or_default().unwrap_or_default();
-            mp.put_json_of_message_with_retry(current_json, message_id.clone(), descriptions_filtered, 10).await.unwrap();
+            let current_json = mp
+                .get_json_of_message_with_retry(message_id.clone(), 10)
+                .await
+                .unwrap_or_default()
+                .unwrap_or_default();
+            mp.put_json_of_message_with_retry(
+                current_json,
+                message_id.clone(),
+                descriptions_filtered,
+                10,
+            )
+            .await
+            .unwrap();
             info!("Successfully added description to message {}", message_id);
         }
     }
@@ -163,16 +178,22 @@ impl Handler {
         let self_clone = self_arc.clone();
         let self_clone2 = self_arc.clone();
         let streaming_loop = tokio::spawn(async move {
-            self_clone.streaming_loop().unwrap_or_else(|err| {
-                error!("Critical error in streaming loop\n{:#?}", err);
-            }).await;
+            self_clone
+                .streaming_loop()
+                .unwrap_or_else(|err| {
+                    error!("Critical error in streaming loop\n{:#?}", err);
+                })
+                .await;
         });
         let manual_loop = tokio::spawn(async move {
             std::thread::sleep(Duration::from_secs(10));
-            self_clone2.manual_loop().unwrap_or_else(|err| {
-                error!("Critical error in streaming loop\n{:#?}", err);
-                panic!("{:#?}", err);
-            }).await;
+            self_clone2
+                .manual_loop()
+                .unwrap_or_else(|err| {
+                    error!("Critical error in streaming loop\n{:#?}", err);
+                    panic!("{:#?}", err);
+                })
+                .await;
         });
         let _ = tokio::join!(streaming_loop, manual_loop);
         Ok(())
@@ -213,7 +234,8 @@ impl Handler {
             iter.for_each(|status| async move {
                 self.handle_update(status.clone(), user_id.clone()).await;
                 std::thread::sleep(Duration::from_secs(1));
-            }).await;
+            })
+            .await;
             std::thread::sleep(Duration::from_secs(manual.interval));
             initial = false;
         }
@@ -257,9 +279,8 @@ impl Handler {
                     }
                     Ok(())
                 })
-                .unwrap_or_else(
-                    |e| error!("Ignoring error while streaming: \n{:#?}", e)
-                ).await;
+                .unwrap_or_else(|e| error!("Ignoring error while streaming: \n{:#?}", e))
+                .await;
         }
         // This will never be reached
         Ok(())
