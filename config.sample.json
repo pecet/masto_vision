@@ -19,5 +19,8 @@
         "statuses": 10,
         "initial_delay": 10,
         "initial_statuses": 3
+    },
+    "streaming": {
+        "enabled": true
     }
 }

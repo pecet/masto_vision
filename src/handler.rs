@@ -183,6 +183,11 @@ impl Handler {
         log::info!("Manual loop started");
         log::debug!("Loading config");
         let config = Config::from_json();
+        let manual = config.get_manual_refresh_config();
+        if !manual.enabled {
+            log::info!("Manual refresh disabled, skipping");
+            return Ok(());
+        }
         let data = config.to_mastodon_data();
         let mastodon = Mastodon::from(data);
         log::info!("Logging in to Mastodon");
@@ -192,11 +197,6 @@ impl Handler {
         log::debug!("Logged in as user id: {}", you.id);
 
         let mut initial = true;
-        let manual = config.get_manual_refresh_config();
-        if !manual.enabled {
-            log::info!("Manual refresh disabled, skipping");
-            return Ok(());
-        }
         std::thread::sleep(Duration::from_secs(manual.initial_delay));
         loop {
             log::info!("Manually refreshing statuses");
@@ -227,7 +227,11 @@ impl Handler {
         let config = Config::from_json();
         let data = config.to_mastodon_data();
         let mastodon = Mastodon::from(data);
-        //let mastodon_patch_ref = &mastodon_patch;
+        let streaming = config.get_streaming_config();
+        if !streaming.enabled {
+            log::info!("Streaming disabled, skipping");
+            return Ok(());
+        }
         log::info!("Logging in to Mastodon");
         let you = mastodon.verify_credentials().await?;
         let user_id = &format!("{}", &you.id);

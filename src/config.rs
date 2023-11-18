@@ -13,11 +13,11 @@ struct MastodonConfig {
 struct GptConfig {
     access_token: String,
     model: String,
+    max_tokens: usize,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct GeneralConfig {
-    max_tokens: usize,
     trigger_word: String,
 }
 
@@ -31,11 +31,17 @@ pub struct ManualRefreshConfig {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct StreamingConfig {
+    pub enabled: bool,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Config {
     mastodon: MastodonConfig,
     gpt: GptConfig,
     general: GeneralConfig,
     manual_refresh: ManualRefreshConfig,
+    streaming: StreamingConfig,
 }
 
 impl Config {
@@ -69,9 +75,12 @@ impl Config {
         self.mastodon.access_token.clone()
     }
     pub fn get_max_tokens(&self) -> usize {
-        self.general.max_tokens
+        self.gpt.max_tokens
     }
     pub fn get_manual_refresh_config(&self) -> ManualRefreshConfig {
         self.manual_refresh.clone()
+    }
+    pub fn get_streaming_config(&self) -> StreamingConfig {
+        self.streaming.clone()
     }
 }
