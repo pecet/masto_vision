@@ -1,6 +1,7 @@
 use std::error::Error;
 
 use log::debug;
+use log::error;
 use serde_json::{json, Value};
 use voca_rs::strip::strip_tags;
 pub struct Vision();
@@ -57,16 +58,16 @@ impl Vision {
         if !response.status().is_success() {
             return Err(Box::new(std::io::Error::new(
                 std::io::ErrorKind::Other,
-                "ChatGPT API returned error",
+                format!("ChatGPT API returned error, http code: {}", response.status()),
             )));
         }
         let body: Value = response.json().await?;
         debug!("Full response from ChatGPT API: {:#?}", body);
-        if body.as_object().unwrap().get("error").is_some() {
-            return Err(Box::new(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "ChatGPT API returned error",
-            )));
+        let error = body.as_object().ok_or("Cannot get body as JSON object")?
+            .get("error").ok_or("Cannot get error from JSON object");
+        match error {
+            Ok(error) => { error!("ChatGPT API returned error:\n{:#?}", error); },
+            Err(_) => { error!("ChatGPT API returned unknown error.\n{:#?}", body); },
         }
         let choices = body
             .as_object()
