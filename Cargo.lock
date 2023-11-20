@@ -811,6 +811,7 @@ dependencies = [
  "kv-log-macro",
  "log",
  "mastodon-async",
+ "once_cell",
  "reqwest",
  "serde",
  "serde_json",

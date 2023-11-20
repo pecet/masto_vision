@@ -2,3 +2,4 @@
 *.log
 config.json
 config_*.json
+already_parsed.json

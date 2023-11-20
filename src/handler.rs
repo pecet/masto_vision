@@ -1,6 +1,7 @@
 use std::time::Duration;
 use std::{collections::HashMap, error::Error, sync::Arc};
 
+use crate::shared_data::SHARED_DATA;
 use crate::{config::Config, mastodon_patch::MastodonPatch, vision::Vision};
 use chrono::Local;
 
@@ -87,6 +88,14 @@ impl Handler {
 
     async fn handle_update(&self, update: Status, user_id: String) {
         debug!("Update event received:\n{:#?}", &update);
+        { // if it does not contain this update, then make sure
+            // that we don't block mutex until needed
+            let already_parsed = SHARED_DATA.lock().unwrap().already_parsed.clone();
+            if already_parsed.contains(&update.id.to_string()) {
+                debug!("Already handled update, skipping");
+                return;
+            }
+        }
         let lang = update.language.clone().unwrap_or("en".to_string());
         let context = update.content.clone();
         let lang_arc = Arc::new(lang.clone());
@@ -139,16 +148,29 @@ impl Handler {
                 .into_iter()
                 .map(|res| res.expect("Task panicked"));
             let descriptions: Vec<_> = results.collect();
-            debug!("Number of descriptions got: {}", descriptions.len());
+            debug!("Number of descriptions got: {}", &descriptions.len());
             let descriptions_filtered: HashMap<_, _> = descriptions
-                .into_iter()
+                .iter()
                 .filter(|d| d.1.is_some())
-                .map(|d| (d.0.to_string(), d.1.unwrap()))
+                .map(|d| (d.0.to_string(), d.1.clone().unwrap()))
                 .collect();
             debug!(
                 "Number of non-empty descriptions got: {}",
                 descriptions_filtered.len()
             );
+            if descriptions.len() == descriptions_filtered.len() {
+                debug!("All descriptions generated successfully");
+                let mut shared_data = SHARED_DATA.lock().unwrap();
+                shared_data.already_parsed.insert(update.id.to_string());
+                shared_data.save();
+                debug!("Saved parsed status ID to shared data");
+                debug!("Current parsed status IDs: {:#?}", SHARED_DATA.lock().unwrap().already_parsed);
+            } else {
+                debug!(
+                    "Some descriptions failed to generate: {}",
+                    descriptions.len() - descriptions_filtered.len()
+                );
+            }
             let message_id = update.clone().id.to_string();
             if descriptions_filtered.is_empty() {
                 debug!("No descriptions generated for message {}", message_id);

@@ -21,6 +21,6 @@
         "initial_statuses": 3
     },
     "streaming": {
-        "enabled": true
+        "enabled": false
     }
 }

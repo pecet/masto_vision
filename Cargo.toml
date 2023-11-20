@@ -22,3 +22,4 @@ clap = { version = "4.4.8", features = ["derive"] }
 json-patch = "1.2.0"
 voca_rs = "1.15.2"
 textwrap = "0.16.0"
+once_cell = "1.18.0"
