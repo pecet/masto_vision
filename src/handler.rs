@@ -160,11 +160,6 @@ impl Handler {
             );
             if descriptions.len() == descriptions_filtered.len() {
                 debug!("All descriptions generated successfully");
-                let mut shared_data = SHARED_DATA.lock().unwrap();
-                shared_data.already_parsed.insert(update.id.to_string());
-                shared_data.save();
-                debug!("Saved parsed status ID to shared data");
-                debug!("Current parsed status IDs: {:#?}", SHARED_DATA.lock().unwrap().already_parsed);
             } else {
                 debug!(
                     "Some descriptions failed to generate: {}",
@@ -186,11 +181,20 @@ impl Handler {
             mp.put_json_of_message_with_retry(
                 current_json,
                 message_id.clone(),
-                descriptions_filtered,
+                descriptions_filtered.clone(),
                 10,
             )
             .await
             .unwrap();
+
+            if descriptions.len() == descriptions_filtered.len() {
+                let mut shared_data = SHARED_DATA.lock().unwrap();
+                shared_data.already_parsed.insert(update.id.to_string());
+                shared_data.save();
+            }
+            debug!("Saved parsed status ID to shared data");
+            debug!("Current parsed status IDs: {:#?}", SHARED_DATA.lock().unwrap().already_parsed);
+
             info!("Successfully added description to message {}", message_id);
         }
     }
