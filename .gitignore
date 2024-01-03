@@ -3,3 +3,5 @@
 config.json
 config_*.json
 already_parsed.json
+/.idea
+/.vscode
