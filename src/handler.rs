@@ -88,7 +88,8 @@ impl Handler {
 
     async fn handle_update(&self, update: Status, user_id: String) {
         debug!("Update event received:\n{:#?}", &update);
-        { // if it does not contain this update, then make sure
+        {
+            // if it does not contain this update, then make sure
             // that we don't block mutex until needed
             let already_parsed = SHARED_DATA.lock().unwrap().already_parsed.clone();
             if already_parsed.contains(&update.id.to_string()) {
@@ -193,7 +194,10 @@ impl Handler {
                 shared_data.save();
             }
             debug!("Saved parsed status ID to shared data");
-            debug!("Current parsed status IDs: {:#?}", SHARED_DATA.lock().unwrap().already_parsed);
+            debug!(
+                "Current parsed status IDs: {:#?}",
+                SHARED_DATA.lock().unwrap().already_parsed
+            );
 
             info!("Successfully added description to message {}", message_id);
         }
