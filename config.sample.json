@@ -7,10 +7,10 @@
     },
     "gpt": {
         "access_token": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-        "model": "gpt-4-vision-preview"
+        "model": "gpt-4-vision-preview",
+        "max_tokens": 384
     },
     "general": {
-        "max_tokens": 384,
         "trigger_word": "!ad"
     },
     "manual_refresh": {
